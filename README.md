@@ -118,3 +118,128 @@ while length(wordlist)>0
 end
 ```
 ***See 'Assignment3_Toledo.m'***
+
+## Assignment 5
+
+1.  Effect of training data amount on encoding accuracy:
+- Train EEG encoding models using different amounts of training image conditions
+[250, 1000, 10000, 16540].
+- Test each of the encoding models on the same test data (i.e., the 200 test images
+and corresponding fMRI responses).
+- Plot the prediction accuracies of each amount of training image conditions over
+time, averaged across all EEG channels (i.e., one time course curve per amount of
+training data).
+- What pattern do you observe, and what do you think are the reasons of this
+pattern?
+
+2. Effect of DNN feature amount on encoding accuracy:
+- Train EEG encoding models using different amounts of DNN features [25, 50, 75,
+100].
+- Test each of the encoding models on the same test data (i.e., the 200 test images
+and corresponding fMRI responses).
+- Plot the prediction accuracies of each amount of DNN features over time, averaged
+across all EEG channels (i.e., one time course curve per amount of DNN Features).
+- What pattern do you observe, and what do you think are the reasons of this
+pattern?
+
+#### Example for training all data amount and all dnn features:
+``` matlab
+%% Train the encoding models
+
+% Load the data
+load("data_assignment_5.mat")
+
+% Get the data dimension sizes
+[numTrials, numChannels, numTime] = size(eeg_train);
+numFeatures = size(dnn_train, 2);
+
+% Store weights and intercepts
+W = zeros(numFeatures, numChannels, numTime); % regression coefficients
+b = zeros(numChannels, numTime);              % intercepts
+
+% Progressbar parameters
+totalModels = numChannels * numTime;
+modelCount = 0;
+
+% Train a linear regression independently for each EEG channel and time
+% poin
+for ch = 1:numChannels
+    for t = 1:numTime
+        
+        % Extract EEG responses for this channel/time over all trials
+        y = eeg_train(:, ch, t);   % [N x 1]
+        
+        % Fit linear regression: y = DNN*w + b
+        mdl = fitlm(dnn_train, y);
+        
+        % Save parameters
+        W(:, ch, t) = mdl.Coefficients.Estimate(2:end); % weights
+        b(ch, t)    = mdl.Coefficients.Estimate(1);     % intercept
+
+        % Update progress bar
+        modelCount = modelCount + 1;
+        fprintf('\rTraining models: %d / %d (%.1f%%)', ...
+            modelCount, totalModels, 100*modelCount/totalModels);
+
+    end
+end
+
+
+
+%% Use the trained models to predict the EEG responses for the test images
+
+[numTest, numFeatures] = size(dnn_test);
+[~, numChannels, numTime] = size(W);
+
+eeg_test_pred = zeros(numTest, numChannels, numTime); % predictions
+
+for ch = 1:numChannels
+    for t = 1:numTime
+        eeg_test_pred(:, ch, t) = dnn_test * W(:, ch, t) + b(ch, t);
+    end
+end
+
+
+
+%% Compute the prediction accuracy using Pearson's correlation
+% If you are not sure what a correlation is, don't worry! For now, all you 
+% need to know is that it is a measure of similarity between two vectors,
+% where a correlation score of 0 indicates no similarity, and a correlation
+% score of 1 indicates perfect similarity.
+
+[Ntest, Nchannels, Ntime] = size(eeg_test);
+
+% Preallocate correlation matrix
+R = zeros(Nchannels, Ntime);
+
+for ch = 1:Nchannels
+    for t = 1:Ntime
+        % Get test responses across images
+        real_vec = squeeze(eeg_test(:, ch, t));
+        pred_vec = squeeze(eeg_test_pred(:, ch, t));
+
+        % Compute Pearson correlation
+        R(ch, t) = corr(real_vec, pred_vec, 'Type', 'Pearson');
+    end
+end
+
+
+
+%% Plot the prediction accuracy over time, averaged across channels
+
+% Average the correlation across channels
+meanR = mean(R, 1);
+
+% Plot the mean correlation over time
+figure;
+plot(meanR);
+xlabel('Time (seconds)');
+xticks(1:Ntime);
+xticklabels(times);
+ylabel('Mean Pearson Correlation');
+title('Prediction Accuracy Over Time');
+grid on;
+set(gca, 'FontSize', 20);
+```
+
+***See 'Assignment5_Toledo.m'***
